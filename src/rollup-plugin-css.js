@@ -18,47 +18,41 @@ function cwd(file) {
 }
 
 function extractCssAndWriteToFile(source, sourceMap, dest, manualDest) {
-  return Promise
-    .resolve()
-    .then(() => {
-      if (manualDest) {
-        return fs.ensureDir(path.dirname(dest));
-      }
-    })
-    .then(() => {
-      const promises = [];
-      const fileName = path.basename(dest, path.extname(dest)) + '.css';
-      const cssOutputDest = path.join(path.dirname(dest), fileName);
+  const promises = [];
+  const fileName = path.basename(dest, path.extname(dest)) + '.css';
+  const cssOutputDest = path.join(path.dirname(dest), fileName);
 
-      let css = source.content.toString('utf8');
+  let css = source.content.toString('utf8');
 
-      if (sourceMap) {
-        let map = source.sourceMap;
+  if (sourceMap) {
+    let map = source.sourceMap;
 
-        if (!manualDest) {
-          map = JSON.parse(map);
-          map.file = fileName;
-          map = JSON.stringify(map);
-        }
+    if (!manualDest) {
+      map = JSON.parse(map);
+      map.file = fileName;
+      map = JSON.stringify(map);
+    }
 
-        if (sourceMap === 'inline') {
-          css += `\n/*# sourceMappingURL=data:application/json;base64,${ Buffer.from(map, 'utf8').toString('base64') }*/`;
-        } else {
-          css += `\n/*# sourceMappingURL=${ fileName }.map */`;
-          promises.push(fs.writeFile(`${ cssOutputDest }.map`, map));
-        }
-      }
+    if (sourceMap === 'inline') {
+      map = Buffer.from(map, 'utf8').toString('base64');
+      css += `\n/*# sourceMappingURL=data:application/json;base64,${ map }*/`;
+    } else {
+      css += `\n/*# sourceMappingURL=${ fileName }.map */`;
+      promises.push(fs.outputFile(`${ cssOutputDest }.map`, map));
+    }
+  }
 
-      promises.push(fs.writeFile(cssOutputDest, css));
+  promises.push(fs.outputFile(cssOutputDest, css));
 
-      return Promise.all(promises);
-    });
+  return Promise.all(promises);
 }
 
-export default function(options = {}) {
+const onwrite = Symbol('onwrite');
+const injectFnName = '__$styleInject';
+
+export default function css(options = {}) {
   const filter = createFilter(options.include, options.exclude);
-  const injectFnName = '__$styleInject';
-  const extensions = options.extensions || ['.css', '.sss'];
+  const extensions = options.extensions || ['.css'];
   const getExport = typeof options.getExport === 'function' ? options.getExport : false;
   const getExportNamed = options.getExportNamed || false;
   const combineStyleTags = Boolean(options.combineStyleTags);
@@ -181,15 +175,17 @@ export default function(options = {}) {
             })
         })
     },
-    ongenerate(opts) {
+    ongenerate(opts, result) {
       if (extract) {
-        return extractCssAndWriteToFile(
+        return result[onwrite] = extractCssAndWriteToFile(
           concat,
           options.sourceMap,
           extractPath ? extractPath : opts.file,
           extractPath
-        )
+        );
       }
     }
   }
 }
+
+css.onwrite = onwrite;

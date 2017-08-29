@@ -22,46 +22,43 @@ function cwd(file) {
 }
 
 function extractCssAndWriteToFile(source, sourceMap, dest, manualDest) {
-  return Promise.resolve().then(function () {
-    if (manualDest) {
-      return fs.ensureDir(path.dirname(dest));
-    }
-  }).then(function () {
-    var promises = [];
-    var fileName = path.basename(dest, path.extname(dest)) + '.css';
-    var cssOutputDest = path.join(path.dirname(dest), fileName);
+  var promises = [];
+  var fileName = path.basename(dest, path.extname(dest)) + '.css';
+  var cssOutputDest = path.join(path.dirname(dest), fileName);
 
-    var css = source.content.toString('utf8');
+  var css = source.content.toString('utf8');
 
-    if (sourceMap) {
-      var map = source.sourceMap;
+  if (sourceMap) {
+    var map = source.sourceMap;
 
-      if (!manualDest) {
-        map = JSON.parse(map);
-        map.file = fileName;
-        map = JSON.stringify(map);
-      }
-
-      if (sourceMap === 'inline') {
-        css += '\n/*# sourceMappingURL=data:application/json;base64,' + Buffer.from(map, 'utf8').toString('base64') + '*/';
-      } else {
-        css += '\n/*# sourceMappingURL=' + fileName + '.map */';
-        promises.push(fs.writeFile(cssOutputDest + '.map', map));
-      }
+    if (!manualDest) {
+      map = JSON.parse(map);
+      map.file = fileName;
+      map = JSON.stringify(map);
     }
 
-    promises.push(fs.writeFile(cssOutputDest, css));
+    if (sourceMap === 'inline') {
+      map = Buffer.from(map, 'utf8').toString('base64');
+      css += '\n/*# sourceMappingURL=data:application/json;base64,' + map + '*/';
+    } else {
+      css += '\n/*# sourceMappingURL=' + fileName + '.map */';
+      promises.push(fs.outputFile(cssOutputDest + '.map', map));
+    }
+  }
 
-    return Promise.all(promises);
-  });
+  promises.push(fs.outputFile(cssOutputDest, css));
+
+  return Promise.all(promises);
 }
 
-var rollupPluginCss = function () {
+var onwrite = Symbol('onwrite');
+var injectFnName = '__$styleInject';
+
+function css() {
   var options = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
 
   var filter = rollupPluginutils.createFilter(options.include, options.exclude);
-  var injectFnName = '__$styleInject';
-  var extensions = options.extensions || ['.css', '.sss'];
+  var extensions = options.extensions || ['.css'];
   var getExport = typeof options.getExport === 'function' ? options.getExport : false;
   var getExportNamed = options.getExportNamed || false;
   var combineStyleTags = Boolean(options.combineStyleTags);
@@ -163,12 +160,14 @@ var rollupPluginCss = function () {
         });
       });
     },
-    ongenerate: function ongenerate(opts) {
+    ongenerate: function ongenerate(opts, result) {
       if (extract) {
-        return extractCssAndWriteToFile(concat, options.sourceMap, extractPath ? extractPath : opts.file, extractPath);
+        return result[onwrite] = extractCssAndWriteToFile(concat, options.sourceMap, extractPath ? extractPath : opts.file, extractPath);
       }
     }
   };
-};
+}
 
-module.exports = rollupPluginCss;
+css.onwrite = onwrite;
+
+module.exports = css;
