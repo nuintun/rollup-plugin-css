@@ -9,7 +9,7 @@ import chalk from 'chalk';
 
 function escapeClassNameDashes(str) {
   return str.replace(/-+/g, match => {
-    return `$${ match.replace(/-/g, '_') }$`
+    return `$${ match.replace(/-/g, '_') }$`;
   });
 }
 
@@ -22,7 +22,7 @@ function extractCssAndWriteToFile(source, sourceMap, dest, manualDest) {
     .resolve()
     .then(() => {
       if (manualDest) {
-        return fs.ensureDir(path.dirname(dest))
+        return fs.ensureDir(path.dirname(dest));
       }
     })
     .then(() => {
