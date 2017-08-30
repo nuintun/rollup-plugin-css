@@ -19,10 +19,8 @@ function cwd(file) {
 
 function extractCssAndWriteToFile(source, sourceMap, dest, manualDest) {
   const promises = [];
-  const fileName = path.basename(dest, path.extname(dest)) + '.css';
-  const cssOutputDest = path.join(path.dirname(dest), fileName);
 
-  let css = source.content.toString('utf8');
+  let css = source.content.toString();
 
   if (sourceMap) {
     let map = source.sourceMap;
@@ -34,15 +32,15 @@ function extractCssAndWriteToFile(source, sourceMap, dest, manualDest) {
     }
 
     if (sourceMap === 'inline') {
-      map = Buffer.from(map, 'utf8').toString('base64');
+      map = Buffer.from(map).toString('base64');
       css += `\n/*# sourceMappingURL=data:application/json;base64,${ map }*/`;
     } else {
       css += `\n/*# sourceMappingURL=${ fileName }.map */`;
-      promises.push(fs.outputFile(`${ cssOutputDest }.map`, map));
+      promises.push(fs.outputFile(`${ dest }.map`, map));
     }
   }
 
-  promises.push(fs.outputFile(cssOutputDest, css));
+  promises.push(fs.outputFile(dest, css));
 
   return Promise.all(promises);
 }
@@ -77,7 +75,7 @@ export default function css(options = {}) {
         });
 
         if (combineStyleTags) {
-          return `${ injectStyleFuncCode }\n${ injectFnName }(${ JSON.stringify(concat.content.toString('utf8')) })`;
+          return `${ injectStyleFuncCode }\n${ injectFnName }(${ JSON.stringify(concat.content.toString()) })`;
         }
       } else {
         return injectStyleFuncCode;
@@ -176,12 +174,20 @@ export default function css(options = {}) {
     },
     ongenerate(opts) {
       if (extract) {
+        const dest = extractPath ? extractPath : opts.file;
+        const filename = path.basename(dest, path.extname(dest)) + '.css';
+        const cssOutputDest = path.join(path.dirname(dest), filename);
+
         return extractCssAndWriteToFile(
           concat,
           options.sourceMap,
-          extractPath ? extractPath : opts.file,
+          cssOutputDest,
           extractPath
-        );
+        ).then(function() {
+          options.onwrite && options.onwrite(cssOutputDest);
+        }).catch(function(error) {
+          throw error;
+        });
       }
     }
   }
