@@ -47,7 +47,6 @@ function extractCssAndWriteToFile(source, sourceMap, dest, manualDest) {
   return Promise.all(promises);
 }
 
-const onwrite = Symbol('onwrite');
 const injectFnName = '__$styleInject';
 
 export default function css(options = {}) {
@@ -175,9 +174,9 @@ export default function css(options = {}) {
             })
         })
     },
-    ongenerate(opts, result) {
+    ongenerate(opts) {
       if (extract) {
-        return result[onwrite] = extractCssAndWriteToFile(
+        return extractCssAndWriteToFile(
           concat,
           options.sourceMap,
           extractPath ? extractPath : opts.file,
@@ -187,5 +186,3 @@ export default function css(options = {}) {
     }
   }
 }
-
-css.onwrite = onwrite;
