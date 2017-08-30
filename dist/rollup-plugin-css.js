@@ -23,10 +23,8 @@ function cwd(file) {
 
 function extractCssAndWriteToFile(source, sourceMap, dest, manualDest) {
   var promises = [];
-  var fileName = path.basename(dest, path.extname(dest)) + '.css';
-  var cssOutputDest = path.join(path.dirname(dest), fileName);
 
-  var css = source.content.toString('utf8');
+  var css = source.content.toString();
 
   if (sourceMap) {
     var map = source.sourceMap;
@@ -38,20 +36,19 @@ function extractCssAndWriteToFile(source, sourceMap, dest, manualDest) {
     }
 
     if (sourceMap === 'inline') {
-      map = Buffer.from(map, 'utf8').toString('base64');
+      map = Buffer.from(map).toString('base64');
       css += '\n/*# sourceMappingURL=data:application/json;base64,' + map + '*/';
     } else {
       css += '\n/*# sourceMappingURL=' + fileName + '.map */';
-      promises.push(fs.outputFile(cssOutputDest + '.map', map));
+      promises.push(fs.outputFile(dest + '.map', map));
     }
   }
 
-  promises.push(fs.outputFile(cssOutputDest, css));
+  promises.push(fs.outputFile(dest, css));
 
   return Promise.all(promises);
 }
 
-var onwrite = Symbol('onwrite');
 var injectFnName = '__$styleInject';
 
 function css() {
@@ -80,7 +77,7 @@ function css() {
         });
 
         if (combineStyleTags) {
-          return injectStyleFuncCode + '\n' + injectFnName + '(' + JSON.stringify(concat.content.toString('utf8')) + ')';
+          return injectStyleFuncCode + '\n' + injectFnName + '(' + JSON.stringify(concat.content.toString()) + ')';
         }
       } else {
         return injectStyleFuncCode;
@@ -160,14 +157,20 @@ function css() {
         });
       });
     },
-    ongenerate: function ongenerate(opts, result) {
+    ongenerate: function ongenerate(opts) {
       if (extract) {
-        return result[onwrite] = extractCssAndWriteToFile(concat, options.sourceMap, extractPath ? extractPath : opts.file, extractPath);
+        var dest = extractPath ? extractPath : opts.file;
+        var filename = path.basename(dest, path.extname(dest)) + '.css';
+        var cssOutputDest = path.join(path.dirname(dest), filename);
+
+        return extractCssAndWriteToFile(concat, options.sourceMap, cssOutputDest, extractPath).then(function () {
+          options.onwrite && options.onwrite(cssOutputDest);
+        }).catch(function (error) {
+          throw error;
+        });
       }
     }
   };
 }
-
-css.onwrite = onwrite;
 
 module.exports = css;
