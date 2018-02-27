@@ -9,7 +9,7 @@ import chalk from 'chalk';
 
 function escapeClassNameDashes(str) {
   return str.replace(/-+/g, match => {
-    return `$${ match.replace(/-/g, '_') }$`;
+    return `$${match.replace(/-/g, '_')}$`;
   });
 }
 
@@ -33,10 +33,10 @@ function extractCssAndWriteToFile(source, sourceMap, dest, manualDest) {
 
     if (sourceMap === 'inline') {
       map = Buffer.from(map).toString('base64');
-      css += `\n/*# sourceMappingURL=data:application/json;base64,${ map }*/`;
+      css += `\n/*# sourceMappingURL=data:application/json;base64,${map}*/`;
     } else {
-      css += `\n/*# sourceMappingURL=${ fileName }.map */`;
-      promises.push(fs.outputFile(`${ dest }.map`, map));
+      css += `\n/*# sourceMappingURL=${fileName}.map */`;
+      promises.push(fs.outputFile(`${dest}.map`, map));
     }
   }
 
@@ -67,15 +67,11 @@ export default function css(options = {}) {
         concat = new Concat(true, path.basename(extractPath || 'styles.css'), '\n');
 
         Object.keys(transformedFiles).forEach(file => {
-          concat.add(
-            file,
-            transformedFiles[file].css,
-            transformedFiles[file].map
-          )
+          concat.add(file, transformedFiles[file].css, transformedFiles[file].map);
         });
 
         if (combineStyleTags) {
-          return `${ injectStyleFuncCode }\n${ injectFnName }(${ JSON.stringify(concat.content.toString()) })`;
+          return `${injectStyleFuncCode}\n${injectFnName}(${JSON.stringify(concat.content.toString())})`;
         }
       } else {
         return injectStyleFuncCode;
@@ -100,8 +96,7 @@ export default function css(options = {}) {
         parser: options.parser
       };
 
-      return Promise
-        .resolve()
+      return Promise.resolve()
         .then(() => {
           if (options.preprocessor) {
             return options.preprocessor(code, id);
@@ -115,13 +110,7 @@ export default function css(options = {}) {
           }
 
           return postcss(options.plugins || [])
-            .process(
-              input.code.replace(
-                /\/\*[@#][\s\t]+sourceMappingURL=.*?\*\/$/gm,
-                ''
-              ),
-              opts
-            )
+            .process(input.code.replace(/\/\*[@#][\s\t]+sourceMappingURL=.*?\*\/$/gm, ''), opts)
             .then(result => {
               let codeExportDefault;
               let codeExportSparse = '';
@@ -134,8 +123,8 @@ export default function css(options = {}) {
                     let newKey = escapeClassNameDashes(key);
 
                     if (reserved.check(key)) {
-                      newKey = `$${ key }$`;
-                      codeExportSparse += `export const ${ newKey }=${ JSON.stringify(codeExportDefault[key]) };\n`;
+                      newKey = `$${key}$`;
+                      codeExportSparse += `export const ${newKey}=${JSON.stringify(codeExportDefault[key])};\n`;
                     }
 
                     if (newKey !== key) {
@@ -149,7 +138,7 @@ export default function css(options = {}) {
 
                       codeExportDefault[newKey] = codeExportDefault[key];
                     }
-                  })
+                  });
                 }
               }
 
@@ -160,17 +149,19 @@ export default function css(options = {}) {
                 };
 
                 return {
-                  code: `${ codeExportSparse }export default ${ JSON.stringify(codeExportDefault) };`,
+                  code: `${codeExportSparse}export default ${JSON.stringify(codeExportDefault)};`,
                   map: { mappings: '' }
-                }
+                };
               }
 
               return {
-                code: `${ codeExportSparse }export default ${ injectFnName }(${ JSON.stringify(result.css) },${ JSON.stringify(codeExportDefault) });`,
+                code: `${codeExportSparse}export default ${injectFnName}(${JSON.stringify(result.css)},${JSON.stringify(
+                  codeExportDefault
+                )});`,
                 map: options.sourceMap && result.map ? JSON.parse(result.map) : { mappings: '' }
-              }
-            })
-        })
+              };
+            });
+        });
     },
     ongenerate(opts) {
       if (extract) {
@@ -178,17 +169,14 @@ export default function css(options = {}) {
         const filename = path.basename(dest, path.extname(dest)) + '.css';
         const cssOutputDest = path.join(path.dirname(dest), filename);
 
-        return extractCssAndWriteToFile(
-          concat,
-          options.sourceMap,
-          cssOutputDest,
-          extractPath
-        ).then(function() {
-          options.onwrite && options.onwrite(cssOutputDest);
-        }).catch(function(error) {
-          throw error;
-        });
+        return extractCssAndWriteToFile(concat, options.sourceMap, cssOutputDest, extractPath)
+          .then(function() {
+            options.onwrite && options.onwrite(cssOutputDest);
+          })
+          .catch(function(error) {
+            throw error;
+          });
       }
     }
-  }
+  };
 }

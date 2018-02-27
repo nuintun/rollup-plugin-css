@@ -12,8 +12,8 @@ var reserved = _interopDefault(require('reserved-words'));
 var chalk = _interopDefault(require('chalk'));
 
 function escapeClassNameDashes(str) {
-  return str.replace(/-+/g, function (match) {
-    return '$' + match.replace(/-/g, '_') + '$';
+  return str.replace(/-+/g, match => {
+    return `$${match.replace(/-/g, '_')}$`;
   });
 }
 
@@ -22,12 +22,12 @@ function cwd(file) {
 }
 
 function extractCssAndWriteToFile(source, sourceMap, dest, manualDest) {
-  var promises = [];
+  const promises = [];
 
-  var css = source.content.toString();
+  let css = source.content.toString();
 
   if (sourceMap) {
-    var map = source.sourceMap;
+    let map = source.sourceMap;
 
     if (!manualDest) {
       map = JSON.parse(map);
@@ -37,10 +37,10 @@ function extractCssAndWriteToFile(source, sourceMap, dest, manualDest) {
 
     if (sourceMap === 'inline') {
       map = Buffer.from(map).toString('base64');
-      css += '\n/*# sourceMappingURL=data:application/json;base64,' + map + '*/';
+      css += `\n/*# sourceMappingURL=data:application/json;base64,${map}*/`;
     } else {
-      css += '\n/*# sourceMappingURL=' + fileName + '.map */';
-      promises.push(fs.outputFile(dest + '.map', map));
+      css += `\n/*# sourceMappingURL=${fileName}.map */`;
+      promises.push(fs.outputFile(`${dest}.map`, map));
     }
   }
 
@@ -49,41 +49,39 @@ function extractCssAndWriteToFile(source, sourceMap, dest, manualDest) {
   return Promise.all(promises);
 }
 
-var injectFnName = '__$styleInject';
+const injectFnName = '__$styleInject';
 
-function css() {
-  var options = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
+function css(options = {}) {
+  const filter = rollupPluginutils.createFilter(options.include, options.exclude);
+  const extensions = options.extensions || ['.css'];
+  const getExport = typeof options.getExport === 'function' ? options.getExport : false;
+  const getExportNamed = options.getExportNamed || false;
+  const combineStyleTags = Boolean(options.combineStyleTags);
+  const extract = Boolean(options.extract);
+  const extractPath = typeof options.extract === 'string' ? options.extract : null;
 
-  var filter = rollupPluginutils.createFilter(options.include, options.exclude);
-  var extensions = options.extensions || ['.css'];
-  var getExport = typeof options.getExport === 'function' ? options.getExport : false;
-  var getExportNamed = options.getExportNamed || false;
-  var combineStyleTags = Boolean(options.combineStyleTags);
-  var extract = Boolean(options.extract);
-  var extractPath = typeof options.extract === 'string' ? options.extract : null;
+  let concat = null;
 
-  var concat = null;
-
-  var transformedFiles = {};
-  var injectStyleFuncCode = styleInject.toString().replace(/styleInject/, injectFnName);
+  const transformedFiles = {};
+  const injectStyleFuncCode = styleInject.toString().replace(/styleInject/, injectFnName);
 
   return {
-    intro: function intro() {
+    intro() {
       if (extract || combineStyleTags) {
         concat = new Concat(true, path.basename(extractPath || 'styles.css'), '\n');
 
-        Object.keys(transformedFiles).forEach(function (file) {
+        Object.keys(transformedFiles).forEach(file => {
           concat.add(file, transformedFiles[file].css, transformedFiles[file].map);
         });
 
         if (combineStyleTags) {
-          return injectStyleFuncCode + '\n' + injectFnName + '(' + JSON.stringify(concat.content.toString()) + ')';
+          return `${injectStyleFuncCode}\n${injectFnName}(${JSON.stringify(concat.content.toString())})`;
         }
       } else {
         return injectStyleFuncCode;
       }
     },
-    transform: function transform(code, id) {
+    transform(code, id) {
       if (!filter(id)) {
         return null;
       }
@@ -92,7 +90,7 @@ function css() {
         return null;
       }
 
-      var opts = {
+      const opts = {
         from: options.from ? cwd(options.from) : id,
         to: options.to ? cwd(options.to) : id,
         map: {
@@ -102,35 +100,35 @@ function css() {
         parser: options.parser
       };
 
-      return Promise.resolve().then(function () {
+      return Promise.resolve().then(() => {
         if (options.preprocessor) {
           return options.preprocessor(code, id);
         }
 
-        return { code: code };
-      }).then(function (input) {
+        return { code };
+      }).then(input => {
         if (input.map && input.map.mappings) {
           opts.map.prev = input.map;
         }
 
-        return postcss(options.plugins || []).process(input.code.replace(/\/\*[@#][\s\t]+sourceMappingURL=.*?\*\/$/gm, ''), opts).then(function (result) {
-          var codeExportDefault = void 0;
-          var codeExportSparse = '';
+        return postcss(options.plugins || []).process(input.code.replace(/\/\*[@#][\s\t]+sourceMappingURL=.*?\*\/$/gm, ''), opts).then(result => {
+          let codeExportDefault;
+          let codeExportSparse = '';
 
           if (getExport) {
             codeExportDefault = getExport(result.opts.from);
 
             if (getExportNamed) {
-              Object.keys(codeExportDefault).forEach(function (key) {
-                var newKey = escapeClassNameDashes(key);
+              Object.keys(codeExportDefault).forEach(key => {
+                let newKey = escapeClassNameDashes(key);
 
                 if (reserved.check(key)) {
-                  newKey = '$' + key + '$';
-                  codeExportSparse += 'export const ' + newKey + '=' + JSON.stringify(codeExportDefault[key]) + ';\n';
+                  newKey = `$${key}$`;
+                  codeExportSparse += `export const ${newKey}=${JSON.stringify(codeExportDefault[key])};\n`;
                 }
 
                 if (newKey !== key) {
-                  console.warn(chalk.yellow('use'), chalk.cyan('' + newKey), chalk.yellow('to import'), chalk.cyan('' + key), chalk.yellow('className'));
+                  console.warn(chalk.yellow('use'), chalk.cyan(`${newKey}`), chalk.yellow('to import'), chalk.cyan(`${key}`), chalk.yellow('className'));
 
                   codeExportDefault[newKey] = codeExportDefault[key];
                 }
@@ -145,23 +143,23 @@ function css() {
             };
 
             return {
-              code: codeExportSparse + 'export default ' + JSON.stringify(codeExportDefault) + ';',
+              code: `${codeExportSparse}export default ${JSON.stringify(codeExportDefault)};`,
               map: { mappings: '' }
             };
           }
 
           return {
-            code: codeExportSparse + 'export default ' + injectFnName + '(' + JSON.stringify(result.css) + ',' + JSON.stringify(codeExportDefault) + ');',
+            code: `${codeExportSparse}export default ${injectFnName}(${JSON.stringify(result.css)},${JSON.stringify(codeExportDefault)});`,
             map: options.sourceMap && result.map ? JSON.parse(result.map) : { mappings: '' }
           };
         });
       });
     },
-    ongenerate: function ongenerate(opts) {
+    ongenerate(opts) {
       if (extract) {
-        var dest = extractPath ? extractPath : opts.file;
-        var filename = path.basename(dest, path.extname(dest)) + '.css';
-        var cssOutputDest = path.join(path.dirname(dest), filename);
+        const dest = extractPath ? extractPath : opts.file;
+        const filename = path.basename(dest, path.extname(dest)) + '.css';
+        const cssOutputDest = path.join(path.dirname(dest), filename);
 
         return extractCssAndWriteToFile(concat, options.sourceMap, cssOutputDest, extractPath).then(function () {
           options.onwrite && options.onwrite(cssOutputDest);
